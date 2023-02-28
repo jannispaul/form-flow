@@ -13,6 +13,13 @@ const stepIndicators = document.querySelectorAll(
 );
 const conditionElements = document.querySelectorAll("[data-condition]");
 const conditionalElements = document.querySelectorAll("[data-condition-name]");
+const repeatableItem = document.querySelector("[data-repeat='item']");
+const addRepeatableButton = document.querySelectorAll(
+  "[data-repeat='add-item']"
+);
+const deleteRepeatableButton = document.querySelectorAll(
+  "[data-repeat='delete-item']"
+);
 
 // Start at the first step
 let currentStep = 0;
@@ -21,9 +28,10 @@ let currentStep = 0;
 // Functions
 //
 
-// Chech if element is visble
+// Chech if element is visble (does not work on fixed elements)
 function isVisible(el) {
-  return !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length);
+  return !(el.offsetParent === null);
+  // return !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length);
 }
 
 // Find items in array that have the same name tag
@@ -32,7 +40,7 @@ function isOneChecked(array, name) {
     return item.name === name && item.checked;
   });
 }
-
+// Make sure all conditional logic is displayed correctely
 function updateLogic() {
   conditionElements.forEach((el) => {
     updateConditionalElements(el);
@@ -109,145 +117,60 @@ function submitForm(params) {
   localStorage.removeItem(formName);
 }
 
-// var submitHandler = function(e) {
-//   // Prevent default form submit
-//   e.preventDefault();
-
-//   // console.log(e);
-
-//   // Turn instrument fields into an array
-//   if (storageID === "anfrage-form") createInstrumentsArray();
-
-//   // Ignore forms that are actively being submitted
-//   if (e.target.classList.contains("submitting")) return;
-
-//   // Show submitting message
-//   var status = e.target.querySelector("[data-submit]");
-//   status.innerHTML = "Sendet...";
-//   status.disabled = true;
-
-//   // Add form .submitting state class for styling
-//   e.target.classList.add("submitting");
-
-//   // Turn FormData to object
-//   let formDataObject = {};
-//   new FormData(e.target).forEach((value, key) => {
-//     formDataObject[key] = value;
-//   });
-//   // Add instruments to formDataObject
-//   formDataObject.instruments = instruments;
-
-//   // Add language to formDataObject
-//   // var fullDomain = window.location.host;
-//   // var parts = fullDomain.split(".");
-//   // var subDomain = parts[0];
-//   // let userLanguage = subDomain === "en" ? "EN" : "DE";
-//   formDataObject.language = userLanguage;
-
-//   let requestOptions;
-
-//   // Adding language to formData
-//   let schadenFormData = new FormData(e.target);
-//   schadenFormData.append("language", userLanguage);
-
-//   // Confige either fetch with json or with FormData
-//   storageID === "anfrage-form"
-//     ? (requestOptions = {
-//         method: "POST",
-//         headers: { "Content-Type": "application/json" },
-//         body: JSON.stringify(formDataObject),
-//         redirect: "follow",
-//       })
-//     : (requestOptions = {
-//         method: "POST",
-//         body: schadenFormData,
-//         redirect: "follow",
-//       });
-
-//   let requestUrl = "";
-//   let redirectUrl = "";
-
-//   // Set request url
-//   storageID === "anfrage-form"
-//     ? (requestUrl =
-//         "https://hook.eu1.make.com/3o81djc85d4vyzwfw3n8m5ldieelcd7m") // Anfrage Hook
-//     : (requestUrl =
-//         "https://hook.eu1.make.com/pubh1gppmby36ck2ehvng5iblzbqtrjb"); // Schaden melden Hook
-
-//   // Set redirect url
-//   storageID === "anfrage-form"
-//     ? (redirectUrl = "/danke/")
-//     : (redirectUrl = "/schaden-gemeldet/");
-
-//   // Post to Backend
-//   fetch(requestUrl, requestOptions)
-//     .then((response) => {
-//       // If response is ok
-//       if (response.ok) {
-//         // console.log("fetch response ok");
-//         // console.log(requestOptions.body);
-//         // redirect to schaden-gemeldet page
-
-//
-//         window.location.href = redirectUrl;
-//         // Clear saved formdata from localstorage
-//         localStorage.removeItem(storageID);
-//       }
-//     })
-//     // If there is an error log it to console and reidrect to fehler page
-//     .catch((error) => {
-//       console.error("Error: ", error);
-//       window.location.href = "/fehler/";
-//     });
-// }
-
 //
 // Conditional logic
 //
+
+// console.log("conditionObject:", conditionArray);
 function updateConditionalElements(el) {
-  // Check if el holds condition or a child
   let conditionHolder;
+  // Check if el or a child of it holds condition
   el.dataset.condition
     ? (conditionHolder = el)
     : (conditionHolder = el.querySelector("[data-condition]"));
-  console.log("el,", conditionHolder);
 
   // Get selected/checked value
   const value = el.querySelector(":checked")?.value;
+
   // Get conditions from attribute and turn into array
-  const conditionValue = conditionHolder?.dataset.condition
+  const conditionValues = conditionHolder?.dataset.condition
     .split(",")
     .map((item) => item.trim());
 
-  // Get element to be shown or hidden based on the condition
-  const elementToBeUpdated = document.querySelector(
+  // Get element to be shown if condition is true
+  const elementToBeShown = document.querySelector(
     `[data-condition-name="${conditionHolder?.dataset.show}"]`
+  );
+  // Get element to be hidden if condition is true
+  const elementToBeHidden = document.querySelector(
+    `[data-condition-name="${conditionHolder?.dataset.hide}"]`
   );
 
   // If there is no more element to be updated return
-  if (!elementToBeUpdated) return;
+  if (!elementToBeShown) return;
 
+  function meetsAnyCondition(arrayOfConditions, activeValue) {
+    return arrayOfConditions.some((condition) => condition === activeValue);
+  }
   // Check if any condition is true
-  const conditionIsMet = conditionValue.some(
-    (condition) => condition === value
-  );
+  const conditionIsMet = meetsAnyCondition(conditionValues, value);
+
+  if (!conditionHolder) return;
 
   // If no condtion is true or the element is not visible hide the dependant element
-  if (!conditionIsMet || !isVisible(conditionHolder)) {
-    elementToBeUpdated.style.display = "none";
+  if (!conditionIsMet) {
+    elementToBeShown.style.display = "none";
+    if (elementToBeHidden) {
+      elementToBeHidden.style.display = "block";
+    }
   } else {
-    elementToBeUpdated.style.display = "block";
+    elementToBeShown.style.display = "block";
+    if (elementToBeHidden) {
+      elementToBeHidden.style.display = "none";
+    }
   }
   // Call the function on the updated element to check for more conditions
-  updateConditionalElements(elementToBeUpdated);
-}
-
-// Hide conditional elements
-function hideConditionalElement(el) {
-  const elementsToShow = document.querySelectorAll(
-    `[data-condition="${el.dataset.hide}"]`
-  );
-  elementsToShow.forEach((el) => (el.style.display = "none"));
+  // updateConditionalElements(elementToBeShown);
 }
 
 //
@@ -266,7 +189,6 @@ function getName(field) {
 }
 
 function saveDataToLocalStorage(event) {
-  console.log("saving");
   // Only run for fields in the [data-auto-save] form
   if (!event.target.closest("[data-form='multi-step']")) return;
 
@@ -304,13 +226,13 @@ function loadDataFromLocalStorage() {
 
   // Loop through each field and load any saved data in localStorage
   Array.prototype.slice.call(fields).forEach(function (field) {
-    // fields.forEach(function (field) {
+    console.log(field.type);
+    // Skip the files input as the File object cannot be stored in localstorage
+    if (field.type === "file") return;
+
     // If the field has no usable ID, skip it
     let name = getName(field);
     if (!name) return;
-
-    // Skip the files input as the File object cannot be stored in localstorage
-    if (name == "files") return;
 
     // If there's no saved data in localStorage, skip it
     if (!saved[name]) return;
@@ -363,6 +285,14 @@ document.addEventListener("click", function (event) {
   // Click on conditional logic element trigger
   if (event.target.closest("[data-condition]")) {
     updateConditionalElements(event.target.closest("[data-condition]"));
+  }
+  // Click on conditional logic element trigger
+  if (event.target.closest("[data-repeat='delete-item']")) {
+    deleteRepeatable(event.target.closest("[data-repeat='item']"));
+  }
+  // Click on conditional logic element trigger
+  if (event.target.closest("[data-repeat='add-item']")) {
+    addRepeatable(event.target.closest("[data-repeat='add-item']"));
   }
   // Click of back button
   if (event.target.matches("[data-form='submit-btn']")) {
