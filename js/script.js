@@ -64,7 +64,7 @@ function showActiveStep(params) {
 }
 
 // Validate the current step
-function validateStep() {
+function validateStep(hideValidationOverlays = false) {
   let isValid = true;
 
   // Get all required inputs, textareas and selects
@@ -80,12 +80,24 @@ function validateStep() {
     if (!isVisible(requiredFields[i])) continue;
 
     // Trigger browser validity check
-    const fieldIsValid = requiredFields[i].reportValidity();
+    const fieldIsValid = hideValidationOverlays
+      ? requiredFields[i].checkValidity()
+      : requiredFields[i].reportValidity();
 
     // Field is invalid stop
     if (!fieldIsValid) return (isValid = false);
   }
   return isValid;
+}
+
+function validateStepWithoutOverlays(params) {
+  console.log("validate silent");
+  const hideValidationOverlays = true;
+  if (!validateStep(hideValidationOverlays)) {
+    nextButtons.forEach((button) => button.classList.add("disabled"));
+  } else {
+    nextButtons.forEach((button) => button.classList.remove("disabled"));
+  }
 }
 
 // Hide all elements with data-condition attribute
@@ -105,6 +117,7 @@ function nextStep() {
 
   currentStep < steps.length && currentStep++;
   showActiveStep();
+  validateStepWithoutOverlays();
 }
 
 // Submit form
@@ -226,13 +239,13 @@ function loadDataFromLocalStorage() {
 
   // Loop through each field and load any saved data in localStorage
   Array.prototype.slice.call(fields).forEach(function (field) {
-    console.log(field.type);
-    // Skip the files input as the File object cannot be stored in localstorage
-    if (field.type === "file") return;
-
+    // console.log(field.type);
     // If the field has no usable ID, skip it
     let name = getName(field);
     if (!name) return;
+
+    // Skip the files input as the File object cannot be stored in localstorage
+    if (name.includes("files")) return;
 
     // If there's no saved data in localStorage, skip it
     if (!saved[name]) return;
@@ -261,6 +274,7 @@ function initiateForm() {
   loadDataFromLocalStorage();
   hideConditionalElements();
   showActiveStep();
+  validateStepWithoutOverlays();
 }
 // Run once on startup
 initiateForm();
@@ -270,8 +284,14 @@ initiateForm();
 //
 
 // Listen for input events
-document.addEventListener("input", saveDataToLocalStorage, false);
-
+document.addEventListener(
+  "input",
+  function (event) {
+    validateStepWithoutOverlays();
+    saveDataToLocalStorage;
+  },
+  false
+);
 // Event listener for clicks
 document.addEventListener("click", function (event) {
   // Click of next button
@@ -304,6 +324,7 @@ document.addEventListener("click", function (event) {
 document.addEventListener(
   "change",
   function (event) {
+    validateStepWithoutOverlays();
     // Click on conditional logic element trigger
     if (event.target.closest("[data-condition]")) {
       updateConditionalElements(event.target.closest("[data-condition]"));

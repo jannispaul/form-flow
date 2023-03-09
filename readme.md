@@ -27,7 +27,7 @@ Attributes based mutli step forms with wefblow or any HTML.
 
 `data-form="step-indicator"` The same index as the current step will get the class `active`
 
-`data-form="next-btn"` The next button will trigger the validation and going to the next step. There can be multiple and they can be anywhere on the page.
+`data-form="next-btn"` The next button will trigger the validation and going to the next step. There can be multiple and they can be anywhere on the page. Will get `disabled`class as long as fields in active step are not valid yet.
 
 `data-form="back-btn"` THh back button will go to the previous step.
 
