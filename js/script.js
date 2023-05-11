@@ -1,334 +1,507 @@
-//
-// Variables
-//
-
-const form = document.querySelector("[data-form='multi-step'] form");
-const formName = form.dataset.name;
-const steps = document.querySelectorAll("[data-form='step']");
-const backButtons = document.querySelectorAll("[data-form='back-btn']");
-const nextButtons = document.querySelectorAll("[data-form='next-btn']");
-const submitButton = document.querySelector("[data-form='submit-btn']");
-const stepIndicators = document.querySelectorAll(
-  "[data-form='step-indicator']"
-);
-const conditionElements = document.querySelectorAll("[data-condition]");
-const conditionalElements = document.querySelectorAll("[data-condition-name]");
-const repeatableItem = document.querySelector("[data-repeat='item']");
-const addRepeatableButton = document.querySelectorAll(
-  "[data-repeat='add-item']"
-);
-const deleteRepeatableButton = document.querySelectorAll(
-  "[data-repeat='delete-item']"
-);
-
-// Start at the first step
-let currentStep = 0;
-
-//
-// Functions
-//
-
-// Chech if element is visble (does not work on fixed elements)
-function isVisible(el) {
-  return !(el.offsetParent === null);
-  // return !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length);
-}
-
-// Find items in array that have the same name tag
-function isOneChecked(array, name) {
-  return array.find((item) => {
-    return item.name === name && item.checked;
-  });
-}
-// Make sure all conditional logic is displayed correctely
-function updateLogic() {
-  conditionElements.forEach((el) => {
-    updateConditionalElements(el);
-  });
-}
-
-// Show active step and update step indicator
-function showActiveStep(params) {
-  steps.forEach((el, index) => {
-    // console.log(el, index);
-    index === currentStep
-      ? (el.style.display = "block")
-      : (el.style.display = "none");
-    index === currentStep
-      ? stepIndicators[index]?.classList.add("active")
-      : stepIndicators[index]?.classList.remove("active");
-  });
-
-  // Make sure all conditional fields are displayed correctely
-  updateLogic();
-}
-
-// Validate the current step
-function validateStep(hideValidationOverlays = false) {
-  let isValid = true;
-
-  // Get all required inputs, textareas and selects
-  const requiredFields = Array.from(
-    steps[currentStep].querySelectorAll(
-      "input[required], textarea[required], select[required]"
-    )
+(() => {
+  //
+  // Variables
+  //
+  const form = document.querySelector("[data-form='multi-step'] form");
+  const formName = form?.dataset.name;
+  const steps = document.querySelectorAll("[data-form='step']");
+  const backButtons = document.querySelectorAll("[data-form='back']");
+  const nextButtons = document.querySelectorAll("[data-form='next']");
+  const submitButton = document.querySelector("[data-form='submit']");
+  const success =
+    document.querySelector("[data-form='success']") ||
+    document.querySelector(".w-form-done");
+  const error =
+    document.querySelector("[data-form='error']") ||
+    document.querySelector(".w-form-fail");
+  const stepIndicators = document.querySelectorAll(
+    "[data-form='step-indicator']"
   );
+  const currentStep = document.querySelector("[data-form='current-step']");
+  const totalSteps = document.querySelector("[data-form='total-steps']");
 
-  // Loop over requiered fields
-  for (let i = 0; i < requiredFields.length; i++) {
-    // Only validate if visible
-    if (!isVisible(requiredFields[i])) continue;
-
-    // Trigger browser validity check
-    const fieldIsValid = hideValidationOverlays
-      ? requiredFields[i].checkValidity()
-      : requiredFields[i].reportValidity();
-
-    // Field is invalid stop
-    if (!fieldIsValid) return (isValid = false);
-  }
-  return isValid;
-}
-
-function validateStepWithoutOverlays(params) {
-  console.log("validate silent");
-  const hideValidationOverlays = true;
-  if (!validateStep(hideValidationOverlays)) {
-    nextButtons.forEach((button) => button.classList.add("disabled"));
-  } else {
-    nextButtons.forEach((button) => button.classList.remove("disabled"));
-  }
-}
-
-// Hide all elements with data-condition attribute
-function hideConditionalElements() {
-  conditionalElements.forEach((el) => (el.style.display = "none"));
-}
-
-// Go to previous step
-function prevStep() {
-  currentStep > 0 && currentStep--;
-  showActiveStep();
-}
-// Go to next step
-function nextStep() {
-  // Dont go if fields are invalid
-  if (!validateStep()) return;
-
-  currentStep < steps.length && currentStep++;
-  showActiveStep();
-  validateStepWithoutOverlays();
-}
-
-// Submit form
-function submitForm(params) {
-  // Dont submit if fields are invalid
-  if (!validateStep()) return;
-
-  form.submit();
-  // Clear saved formdata from localstorage
-  localStorage.removeItem(formName);
-}
-
-//
-// Conditional logic
-//
-
-// console.log("conditionObject:", conditionArray);
-function updateConditionalElements(el) {
-  let conditionHolder;
-  // Check if el or a child of it holds condition
-  el.dataset.condition
-    ? (conditionHolder = el)
-    : (conditionHolder = el.querySelector("[data-condition]"));
-
-  // Get selected/checked value
-  const value = el.querySelector(":checked")?.value;
-
-  // Get conditions from attribute and turn into array
-  const conditionValues = conditionHolder?.dataset.condition
-    .split(",")
-    .map((item) => item.trim());
-
-  // Get element to be shown if condition is true
-  const elementToBeShown = document.querySelector(
-    `[data-condition-name="${conditionHolder?.dataset.show}"]`
+  // These element get evaluated
+  const conditionHolderElements = document.querySelectorAll(
+    "[data-condition-name]"
   );
-  // Get element to be hidden if condition is true
-  const elementToBeHidden = document.querySelector(
-    `[data-condition-name="${conditionHolder?.dataset.hide}"]`
-  );
+  // These elementes get shown / hidden
+  const conditionalElements = document.querySelectorAll("[data-condition]");
 
-  // If there is no more element to be updated return
-  if (!elementToBeShown) return;
+  // Start at the first step
+  let currentStepIndex = 0;
+  let urlParams = Object.fromEntries(new URLSearchParams(location.search));
 
-  function meetsAnyCondition(arrayOfConditions, activeValue) {
-    return arrayOfConditions.some((condition) => condition === activeValue);
+  //
+  // Functions
+  //
+
+  /**
+   * Chech if element is visble (does not work on fixed elements)
+   * @param {HTMLElement} el
+   * @returns {boolean} true if element is visble
+   */
+  function isVisible(el) {
+    return !(el.offsetParent === null);
+    // return !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length);
   }
-  // Check if any condition is true
-  const conditionIsMet = meetsAnyCondition(conditionValues, value);
+  /**
+   * Sets the number of total steps in element with data-form="total-steps"
+   */
+  function setTotalSteps() {
+    if (!totalSteps) return;
+    totalSteps.innerText = steps.length;
+  }
 
-  if (!conditionHolder) return;
+  /**
+   * Sets the current Step number in element with data-form="current-step"
+   */
+  function updateCurrentStep() {
+    if (!currentStep) return;
+    currentStep.innerText = currentStepIndex + 1;
+  }
 
-  // If no condtion is true or the element is not visible hide the dependant element
-  if (!conditionIsMet) {
-    elementToBeShown.style.display = "none";
-    if (elementToBeHidden) {
-      elementToBeHidden.style.display = "block";
+  /**
+   * Make sure all conditional logic is displayed correctely
+   */
+  function updateConditionalElements() {
+    conditionHolderElements.forEach((el) => {
+      updateConditionalElements(el);
+    });
+  }
+
+  /**
+   * Show active step
+   * And: update step indicator, update condtional elements, and validated
+   */
+  function showActiveStep() {
+    steps.forEach((el, index) => {
+      index === currentStepIndex
+        ? (el.style.display = "block")
+        : (el.style.display = "none");
+      index === currentStepIndex
+        ? stepIndicators[index]?.classList.add("active")
+        : stepIndicators[index]?.classList.remove("active");
+    });
+
+    // Update number of current Step
+    updateCurrentStep();
+    // Make sure all conditional fields are displayed correctely
+    updateConditionalElements();
+    // Validate step in the background
+    validateStepWithoutOverlays();
+    //Scroll to top of page / step
+    scrollToTop();
+  }
+
+  /**
+   * Validates all input in the current step
+   * User will get prompted if no value is passed to function
+   * If any required input is not valid returns false
+   * @param {boolean} hideValidationOverlays
+   * @returns {boolean} isValid - true if all inputs are valid
+   */
+  function validateStep(hideValidationOverlays = false) {
+    let isValid = true;
+
+    // Get all required inputs, textareas and selects
+    const requiredFields = Array.from(
+      steps[currentStepIndex].querySelectorAll(
+        "input[required], textarea[required], select[required]"
+      )
+    );
+
+    // Loop over requiered fields
+    for (let i = 0; i < requiredFields.length; i++) {
+      // Only validate if visible
+      if (!isVisible(requiredFields[i])) continue;
+
+      // Trigger browser validity check with or without promting user
+      const fieldIsValid = hideValidationOverlays
+        ? requiredFields[i].checkValidity()
+        : requiredFields[i].reportValidity();
+
+      // Field is invalid stop
+      if (!fieldIsValid) return (isValid = false);
     }
-  } else {
-    elementToBeShown.style.display = "block";
-    if (elementToBeHidden) {
-      elementToBeHidden.style.display = "none";
+    return isValid;
+  }
+
+  /**
+   * Runs validateStep()
+   * Validating all inputs in the current step without prompting the user
+   * If any required input is not valid the disabled class gets added to all next and submit buttons
+   * Else the disabled class gets removed from next and submit buttons
+   */
+  function validateStepWithoutOverlays() {
+    // console.log("validate silent");
+    const hideValidationOverlays = true;
+    if (!validateStep(hideValidationOverlays)) {
+      nextButtons?.forEach((button) => button.classList.add("disabled"));
+      submitButton?.classList.add("disabled");
+    } else {
+      nextButtons?.forEach((button) => button.classList.remove("disabled"));
+      submitButton?.classList.remove("disabled");
     }
   }
-  // Call the function on the updated element to check for more conditions
-  // updateConditionalElements(elementToBeShown);
-}
-
-//
-// Auto save
-//
-
-// Helper function for saving data to inditfy fields by name or id
-function getName(field) {
-  if (field.name.length > 0) {
-    return field.name;
+  /**
+   * Hide all elements with data-condition attribute
+   */
+  function hideConditionalElements() {
+    conditionalElements.forEach((el) => (el.style.display = "none"));
   }
-  if (field.id.length > 0) {
-    return field.id;
+
+  /**
+   * Helper function to scroll to top
+   */
+  function scrollToTop() {
+    window.scrollTo({
+      top: form.getBoundingClientRect().top,
+      behavior: "smooth",
+    });
   }
-  return null;
-}
 
-function saveDataToLocalStorage(event) {
-  // Only run for fields in the [data-auto-save] form
-  if (!event.target.closest("[data-form='multi-step']")) return;
-
-  // Get an ID for the field
-  var name = getName(event.target);
-  if (!name) return;
-
-  // Get existing data from localStorage
-  let saved = localStorage.getItem(formName);
-  saved = saved ? JSON.parse(saved) : {};
-
-  // Add the field to the localStorage object
-  // If it's a checkbox, use on/off values
-  // Otherwise, save the value
-  if (event.target.type === "checkbox") {
-    saved[name] = event.target.checked ? "on" : "off";
-  } else {
-    saved[name] = event.target.value;
+  /**
+   * Go to previous step
+   */
+  function prevStep() {
+    currentStepIndex > 0 && currentStepIndex--;
+    showActiveStep();
   }
-  // Save the object back to localStorage
-  localStorage.setItem(formName, JSON.stringify(saved));
-}
+  /**
+   * Go to next step
+   * @returns
+   */
+  function nextStep() {
+    // Dont go if fields are invalid
+    if (!validateStep()) return;
 
-// Load saved form data from localStorage
-function loadDataFromLocalStorage() {
-  console.log("loading");
-  // Get data from localStorage
-  let saved = localStorage.getItem(formName);
-  if (!saved) return;
-  saved = JSON.parse(saved);
-  // Get all of the form fields
-  let fields = document.querySelectorAll(
-    "[data-auto-save] input, [data-auto-save] textarea, [data-auto-save] select"
-  );
+    currentStepIndex < steps.length && currentStepIndex++;
+    showActiveStep();
+  }
 
-  // Loop through each field and load any saved data in localStorage
-  Array.prototype.slice.call(fields).forEach(function (field) {
-    // console.log(field.type);
-    // If the field has no usable ID, skip it
-    let name = getName(field);
+  /**
+   * Submit the form to the specified action URL
+   * @returns
+   */
+  function submitForm(e) {
+    e.preventDefault();
+
+    // Dont submit if fields are invalid
+    if (!validateStep()) return;
+
+    const status = document.querySelector("[data-form='submit']");
+    if (status) {
+      status.innerHTML = status.dataset.wait && "Please wait...";
+      status.disabled = true; // Add form .submitting class for styling
+    }
+
+    // Get data from Form
+    let formData = new FormData(form);
+
+    // Submit
+    const requestOptions = {
+      method: "POST",
+      body: formData,
+      redirect: "follow",
+    };
+
+    // Get action url
+    const requestUrl = form.action;
+
+    fetch(requestUrl, requestOptions)
+      .then(function (response) {
+        // If response is ok
+        if (response.ok) {
+          // console.log("fetch response ok");
+
+          // Clear saved formdata from localstorage
+          localStorage.removeItem(formName);
+
+          // Hide form and show success
+          form.style.display = "none";
+          if (success) {
+            success.style.display = "block";
+          }
+          scrollToTop();
+        }
+      }) // If there is an error log it to console and show error
+      ["catch"](function (errorMessage) {
+        console.error("Error: ", errorMessage);
+        success.style.display = "none";
+        error.style.display = "block";
+      });
+  }
+
+  /**
+   * Conditional Logic
+   * Update all conditional elements. Triggered on click of an element with condition attribute
+   * @param {HTMLElement} el - Element that has a data-condition or data-condition-name attribute.
+   * @returns
+   */
+  function updateConditionalElements(el) {
+    let conditionElement;
+    // Check if el or a child of it holds condition
+    el?.dataset.conditionName
+      ? (conditionElement = el)
+      : (conditionElement = el?.querySelector("[data-condition-name]"));
+
+    if (!conditionElement?.dataset) return;
+
+    // Get all conditional Elements
+    let conditionHolders = document.querySelectorAll(
+      `[data-condition-el="${conditionElement.dataset.conditionName}"]`
+    );
+
+    // Get selected/checked value
+    const value = el.querySelector(":checked")?.value;
+
+    /**
+     * Check if any condtion is met
+     * @param {Array[string]} arrayOfConditions
+     * @param {string|number} activeValue
+     * @returns
+     */
+    function meetsAnyCondition(arrayOfConditions, activeValue) {
+      return arrayOfConditions.some((condition) =>
+        // if the condition starts with ! its negated
+        Array.from(condition)[0] === "!"
+          ? condition.substring(1) !== activeValue
+          : condition === activeValue
+      );
+    }
+
+    // Get conditions from conditionholders
+    conditionHolders.forEach((holder) => {
+      const conditionValues = holder?.dataset?.condition
+        .split(",")
+        .map((item) => item.trim());
+
+      // Check if any condition is true
+      const conditionIsMet = meetsAnyCondition(conditionValues, value);
+
+      if (!conditionElement) return;
+
+      // If no condtion is true or the element is not visible hide the dependant element
+      if (!conditionIsMet) {
+        holder.style.display = "none";
+      } else {
+        holder.style.display = "block";
+      }
+    });
+  }
+
+  /**
+   * Auto save
+   * Save all input filed data to localStorage under the form name
+   * Load data from localStorage and populate inputs
+   */
+
+  /**
+   * Helper function to get name or id of input filed
+   * @param {HTMLElement} field - Input field
+   * @returns
+   */
+  function getName(field) {
+    if (field.name.length > 0) {
+      return field.name;
+    }
+    if (field.id.length > 0) {
+      return field.id;
+    }
+    return null;
+  }
+
+  /**
+   * Saves data to localStorage on input event
+   * @param {InputEvent} event
+   * @returns
+   */
+  function saveDataToLocalStorage(event) {
+    // console.log(event);
+    if (event.target.closest("[data-auto-save='exclude']")) return;
+    // Only run for fields in the [data-auto-save] form
+    if (!event.target.closest("[data-auto-save]")) return;
+
+    // Get an ID for the field
+    var name = getName(event.target);
     if (!name) return;
 
-    // Skip the files input as the File object cannot be stored in localstorage
-    if (name.includes("files")) return;
+    // Get existing data from localStorage
+    let saved = localStorage.getItem(formName);
+    saved = saved ? JSON.parse(saved) : {};
 
-    // If there's no saved data in localStorage, skip it
-    if (!saved[name]) return;
-
-    // Set the field value to the saved data in localStorage
-    // If it's a checkbox, set it's checked state
-    // If it's a radio button and its value matches, set its checked state
-    // Otherwise, set the value
-    if (field.type === "checkbox") {
-      field.checked = saved[name] === "on" ? true : false;
-    } else if (field.type === "radio") {
-      field.checked = saved[name] === field.value ? true : false;
+    // Add the field to the localStorage object
+    // If it's a checkbox, use on/off values
+    // Otherwise, save the value
+    if (event.target.type === "checkbox") {
+      saved[name] = event.target.checked ? "on" : "off";
     } else {
-      field.value = saved[name];
+      saved[name] = event.target.value;
+    }
+    // Save the object back to localStorage
+    localStorage.setItem(formName, JSON.stringify(saved));
+  }
+
+  /**
+   * Writes an object with data structured as key: name of input, value: value of input
+   * @param {[HTMLElement]} arrayOfInputs
+   * @param {{string: string|number}} objectWithData
+   */
+
+  function writeDataToInputs(arrayOfInputs, objectWithData) {
+    // Loop through each field and load any saved data in localStorage
+    Array.prototype.slice.call(arrayOfInputs).forEach((field) => {
+      // If the field has no usable ID, skip it
+      let name = getName(field);
+      if (!name) return;
+
+      // Skip the files input as the File object cannot be stored in localstorage
+      if (name.includes("files")) return;
+
+      // If there's no saved data in localStorage, skip it
+      if (!objectWithData[name]) return;
+
+      // Set the field value to the saved data in localStorage
+      // If it's a checkbox, set it's checked state
+      // If it's a radio button and its value matches, set its checked state
+      // Otherwise, set the value
+      if (field.type === "checkbox") {
+        field.checked = objectWithData[name] === "on" ? true : false;
+      } else if (field.type === "radio") {
+        field.checked = objectWithData[name] === field.value ? true : false;
+      } else {
+        field.value = objectWithData[name];
+      }
+    });
+  }
+  /**
+   * Load saved form data from localStorage
+   * @returns
+   */
+  function loadDataFromLocalStorage() {
+    // console.log("loading");
+    // Get data from localStorage
+    let saved = localStorage.getItem(formName);
+    if (!saved) return;
+    saved = JSON.parse(saved);
+    // Get all of the form fields
+    let fields = document.querySelectorAll(
+      "[data-auto-save] input, [data-auto-save] textarea, [data-auto-save] select"
+    );
+
+    writeDataToInputs(fields, saved);
+  }
+
+  /**
+   * Handle URL parameters
+   * Set data from URL params to inputs
+   */
+  function setInputsFromURLParams() {
+    if (!urlParams) return;
+
+    const allFields = document.querySelectorAll("input, textarea, select");
+
+    writeDataToInputs(allFields, urlParams);
+  }
+
+  /**
+   * Setup the form
+   */
+  function initiateForm() {
+    hideConditionalElements();
+    setTotalSteps();
+    loadDataFromLocalStorage();
+    setInputsFromURLParams();
+    updateConditionalElements();
+    showActiveStep();
+    validateStepWithoutOverlays();
+  }
+
+  initiateForm();
+
+  //
+  // Event Listeners
+  //
+
+  document.addEventListener("keypress", function (event) {
+    // If the user presses the "Enter" key on the keyboard
+    if (event.key === "Enter") {
+      handleClicksAndEnter(event);
     }
   });
 
-  // Make sure all conditional fields are displayed correctely
-  updateLogic();
-}
+  /**
+   * Event listener for clicks
+   */
+  document.addEventListener("click", handleClicksAndEnter);
 
-//
-// Setup the form
-//
-function initiateForm() {
-  loadDataFromLocalStorage();
-  hideConditionalElements();
-  showActiveStep();
-  validateStepWithoutOverlays();
-}
-// Run once on startup
-initiateForm();
+  /**
+   * Handles click and enter key press events, delegates events, and runs various functions
+   * @listens to click and enter key press
+   * @param {MouseEvent|KeyboardEvent} event
+   */
+  function handleClicksAndEnter(event) {
+    // Prevent focused buttons from triggering both keypress and click event
+    // event.preventDefault();
 
-//
-// Event listeners
-//
-
-// Listen for input events
-document.addEventListener(
-  "input",
-  function (event) {
-    validateStepWithoutOverlays();
-    saveDataToLocalStorage;
-  },
-  false
-);
-// Event listener for clicks
-document.addEventListener("click", function (event) {
-  // Click of next button
-  if (event.target.matches("[data-form='next-btn']")) {
-    nextStep();
-  }
-  // Click of back button
-  if (event.target.matches("[data-form='back-btn']")) {
-    prevStep();
-  }
-  // Click on conditional logic element trigger
-  if (event.target.closest("[data-condition]")) {
-    updateConditionalElements(event.target.closest("[data-condition]"));
-  }
-  // Click on conditional logic element trigger
-  if (event.target.closest("[data-repeat='delete-item']")) {
-    deleteRepeatable(event.target.closest("[data-repeat='item']"));
-  }
-  // Click on conditional logic element trigger
-  if (event.target.closest("[data-repeat='add-item']")) {
-    addRepeatable(event.target.closest("[data-repeat='add-item']"));
-  }
-  // Click of back button
-  if (event.target.matches("[data-form='submit-btn']")) {
-    submitForm();
-  }
-});
-
-// When select choice is changed
-document.addEventListener(
-  "change",
-  function (event) {
-    validateStepWithoutOverlays();
+    // Click of next button
+    if (event.target.matches("[data-form='next']")) {
+      nextStep();
+    }
+    // Click of back button
+    if (event.target.matches("[data-form='back']")) {
+      prevStep();
+    }
     // Click on conditional logic element trigger
     if (event.target.closest("[data-condition]")) {
       updateConditionalElements(event.target.closest("[data-condition]"));
     }
-  },
-  true
-);
+    // Click on conditional logic element trigger
+    if (event.target.closest("[data-repeat='delete-item']")) {
+      deleteRepeatable(event.target.closest("[data-repeat='item']"));
+    }
+    // Click on conditional logic element trigger
+    if (event.target.closest("[data-repeat='add-item']")) {
+      addRepeatable(event.target.closest("[data-repeat='add-item']"));
+    }
+    // Click of back button
+    if (event.target.matches("[data-form='submit']")) {
+      submitForm(event);
+    }
+  }
+
+  document.addEventListener("input", handleInputEvents, false);
+
+  /**
+   * Runs when input event is triggered
+   * @param {InputEvent} event
+   */
+  function handleInputEvents(event) {
+    validateStepWithoutOverlays();
+    saveDataToLocalStorage(event);
+  }
+
+  /**
+   * Change event listener is triggered when select choice is changed
+   */
+  document.addEventListener("change", handleChangeEvents, true);
+
+  /**
+   * Hanles changeEvent when a input, select, textarea value is changed
+   * @param {ChangeEvent} event
+   */
+  function handleChangeEvents(event) {
+    validateStepWithoutOverlays();
+    // Click on conditional logic element trigger
+    if (event.target.closest("[data-condition-name]")) {
+      updateConditionalElements(event.target.closest("[data-condition-name]"));
+    }
+  }
+})();
+
+// document.addEventListener("submit", handleSubmission);
+
+// function handleSubmission(event) {
+//   // console.log("submiiting:", event);
+//   event.preventDefault();
+// }
