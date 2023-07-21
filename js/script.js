@@ -3,6 +3,7 @@
   // Variables
   //
   const form = document.querySelector("[data-form='multi-step'] form");
+  if (!form) return;
   const formName = form?.dataset.name;
   const steps = document.querySelectorAll("[data-form='step']");
   const backButtons = document.querySelectorAll("[data-form='back']");
@@ -154,6 +155,7 @@
    * Helper function to scroll to top
    */
   function scrollToTop() {
+    if (!form) return;
     window.scrollTo({
       top: form.getBoundingClientRect().top,
       behavior: "smooth",
@@ -206,7 +208,7 @@
     };
 
     // Get action url
-    const requestUrl = form.action;
+    const requestUrl = form?.action;
 
     fetch(requestUrl, requestOptions)
       .then(function (response) {
@@ -444,6 +446,7 @@
     // Prevent focused buttons from triggering both keypress and click event
     // event.preventDefault();
 
+    if (!event.target) return;
     // Click of next button
     if (event.target.matches("[data-form='next']")) {
       nextStep();

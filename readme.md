@@ -46,7 +46,7 @@ Add the following 3 attributes:
 `data-condition-name`: Sets the name on the element that lets you select a value. Works with input type radio and select.
 
 **On the conditional element:**
-`data-condition-el`: Sets the name of the node previously set with `data-coondition-name`. Elements with this attribute will be hidden by default.
+`data-condition-el`: Sets the name of the node previously set with `data-condition-name`. Elements with this attribute will be hidden by default.
 
 `data-condition`: Containes one or multiple, comma-seperated values. If at least one condition value is equal to the value of the checked child the condition resolves to true and the conditional element is shown. Spaces at end and beggingin of conditons will be trimmed off. An exclamation mark at the beginning of the condition negates it.
 
